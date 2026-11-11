@@ -1,0 +1,231 @@
+<!-- <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> -->
+<html lang="zh-CN">
+<head ms-controller="login_head">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title></title>
+	
+	<meta charset="UTF-8">
+    <!--IE兼容-->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!--将360默认为极速模式打开-->
+    <meta name="renderer" content="webkit">
+    <!--移动优先-->
+   	<meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--图标引入-->
+
+	<meta name="keywords" content="Login 页面" />
+
+	
+	<link href="css/bootstrap.min.css" rel='stylesheet' type='text/css' />
+	<link href="css/bootstrap-theme.min.css" rel='stylesheet' type='text/css' />
+	<link href="css/portal.css" rel='stylesheet' type='text/css' />
+
+
+</head>
+<body ms-controller="body_info" >
+
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-xs-12 col-md-12" class="center-block" >
+			<p class="bg-primary">{{title}}</p>
+		</div>
+        </div>
+	<div class="row">
+		<div class="col-md-12">
+			<p class="bg-info">{{topic}}</p>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-md-8 col-md-push-4" >
+			
+			<img src="images/bg1.jpg" class="img-responsive" alt="Responsive image">
+		</div>
+
+		<div class="col-md-4 col-md-pull-8" >
+			<div  ms-controller="user_info">
+				<h4 >用户信息</h4>
+				<table class="table table-striped" >
+                                        <tr>
+						<td>下行速率</td>
+						<td>{{In_Rate}}ps</td>
+					</tr>
+					<tr>
+						<td>上行速率</td>
+						<td>{{Out_Rate}}ps</td>
+					</tr>
+
+					<tr>
+						<td>IP地址</td>
+						<td>{{User_IP}}</td>
+					</tr> 
+					<tr>
+						<td>剩余在线时长</td>
+						<td>{{Session_Timeout}}</td>
+					</tr>
+					<tr>
+						<td>剩余流量</td>
+						<td>{{Quota_Data}}</td>
+					</tr>
+					<!-- tr>
+						<td>NASIP</td>
+						<td>{{data.nasip}}</td>
+					</tr  -->
+				</table>
+				
+			</div>
+		</div>
+	</div>
+
+	<div class="row" class="sty_subtitle">
+		<div class="col-md-12" >
+			<br>
+			<p class=" text-warning bg-info"  > {{footer}}</p>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript" src="js/avalon.min.js"></script>
+<script type="text/javascript">
+
+function GetRequest() {
+    var url = location.search; //获取url中"?"符后的字串
+    var theRequest = new Object();
+    if (url.indexOf("?") != -1) {
+        var str = url.substr(1);
+        strs = str.split("&");
+        for(var i = 0; i < strs.length; i ++) {
+            theRequest[strs[i].split("=")[0]]=decodeURI(strs[i].split("=")[1]);
+        }
+    }
+    return theRequest;
+} 
+
+//调用
+var Request = new Object();
+Request = GetRequest();
+var name,age;
+Quota_Data = bytesToSize(Request['Quota-Data']);
+In_Rate = bitsToSize(Request['In-Rate']) ;
+Out_Rate = bitsToSize(Request['Out-Rate']) ;
+Session_Timeout = formatTime(Request['Session-Timeout']);
+User_IP=Request['User-IP'];
+
+
+
+
+function formatTime(session_time){
+   	
+    sec=parseInt(session_time);
+    if(isNaN(sec)){
+    	return ""
+    }
+    if(session_time == "0"){
+        return "不限时";
+    }
+    run_days=sec / 86400;
+    run_hour=(sec % 86400)/3600;
+    run_minute=(sec % 3600)/60;
+    run_second=sec % 60;
+    return parseInt(run_days)+"天"+parseInt(run_hour)+"小时"+parseInt(run_minute)+"分"+parseInt(run_second)+"秒"
+};
+
+
+Number.prototype.formatTime=function(){
+   	
+    sec=parseInt(this);
+    if(isNaN(sec)){
+    	return ""
+    }
+    run_days=sec / 86400;
+    run_hour=(sec % 86400)/3600;
+    run_minute=(sec % 3600)/60;
+    run_second=sec % 60;
+    return parseInt(run_days)+"天"+parseInt(run_hour)+"小时"+parseInt(run_minute)+"分"+parseInt(run_second)+"秒"
+};
+
+function bytesToSize(bytes) {
+	if(typeof(bytes) == "undefined"){
+		return "";
+	}
+	if (bytes == "0") 
+		return '不限流量';
+	var k = 1024;
+	sizes = ['B','KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+	i = Math.floor(Math.log(bytes) / Math.log(k));
+	return (bytes / Math.pow(k, i)).toFixed(3) + ' ' + sizes[i]; 
+}
+
+
+function bitsToSize(bits) {
+	if(typeof(bits) == "undefined"){
+		return "";
+	}
+	if (bits === 0) 
+		return '0 b';
+	var k = 1024;
+	sizes = ['b','Kb', 'Mb', 'Gb', 'Tb', 'Pb', 'Eb', 'Zb', 'Yb'];
+	i = Math.floor(Math.log(bits) / Math.log(k));
+	return (bits / Math.pow(k, i)).toFixed(3) + ' ' + sizes[i]; 
+}
+
+
+var vm_contents,vm_body;
+document.title="登录成功";
+ 
+ 
+    
+
+	require(["mmRequest/mmRequest"], function() {
+ 
+		vm_body = avalon.define({
+			$id:"body_info",
+			title : "登录成功",
+                        topic :"",
+                        footer : ""
+		});
+
+
+		//获取信息
+           
+		avalon.ajax({
+			url: "/v1/get_portal_text",
+			type: "GET",
+			// dataType: "json",
+			//timeout: 3,
+			success: function(res){
+				//avalon.log(res);
+				res = JSON.parse(res);
+                                
+				vm_body.topic =  res.body.success_topic;
+				vm_body.title =  res.body.success_title;
+                                vm_body.footer =  res.body.success_footer;
+			},
+			complete:function(res){
+				// avalon.log(res)
+			},
+			error: function(res){
+				alert("连接失败");
+			}
+		})
+ 
+		var usr_data = avalon.unparam(location.search.substr(1));
+		//usr_data.sessiontime = Number(usr_data.sessiontime).formatTime();
+		usr_data.flow = bytesToSize(usr_data.flow);
+
+		vm_contents = avalon.define("user_info",function(vm){
+			data= usr_data
+		});
+
+		
+		avalon.scan()
+	})
+
+
+
+
+</script>
+</body>
+</html>
+
+

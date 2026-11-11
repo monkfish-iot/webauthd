@@ -1,0 +1,263 @@
+<!-- <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"> -->
+<html lang="zh-CN">
+<head ms-controller="login_head">
+	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+	<meta http-equiv="Pragma" content="no-cache">
+	<meta http-equiv="Expires" content="0">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title></title>
+
+	<meta charset="UTF-8">
+	<!--IE兼容-->
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<!--将360默认为极速模式打开-->
+	<meta name="renderer" content="webkit">
+	<!--移动优先-->
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<!--图标引入-->
+
+	<meta name="keywords" content="Login 页面" />
+
+	<link href="css/style.css" rel='stylesheet' type='text/css' />
+
+</head>
+<body ms-controller="login_body">
+
+	<script type="text/javascript">
+		function show_msg(text) {
+			var t = document.getElementById('msg_text');
+			t.style.visibility = 'visible';
+			t.innerHTML = unescape(text);
+		}
+	</script>
+
+
+	<div class="login-form" ms-controller="m_form">
+		<br>
+		<br>
+		<div class="head-info">
+			{{com.title}}
+		</div>
+		<div class="clear"> </div>
+
+		<div id="msg_text" class="msg-info" style="visibility:none;">
+
+		</div>
+
+
+		<form>
+			<input type="text" placeholder="用户名" ms-duplex="username" id="username">
+			<input type="password" placeholder="密码" ms-duplex="userpasswd">
+		</form>
+		<div class="signin"><input type="submit" value="登录" ms-click="login" ms-attr-disabled="loggingIn"></div>
+	</div>
+	<div class="copy-rights">
+		<p>Copyright ©2005-2022 {{com.name}} 版本所有</p>
+	</div>
+	<script type="text/javascript" src="js/avalon.min.js"></script>
+
+	<script type="text/javascript">
+		// login.js 的内容
+		(function () {
+			// 获取XHR对象
+			var getXHR = function () {
+				return new (window.XMLHttpRequest || ActiveXObject)("Microsoft.XMLHTTP") // jshint ignore:line
+			}
+
+			var _action_req_post = function (post_url, query_str, fn) {
+				var xhr = getXHR();
+				
+				// 发送AJAX请求后的回调处理
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState === 4) {
+						// 无论状态码是什么都调用回调函数
+						var text = xhr.responseText || "";
+						fn(text);
+					}
+				}
+				
+				// 超时处理
+				xhr.ontimeout = function () {
+					show_msg("请求超时，请稍后重试");
+					fn(null);
+				}
+
+				// 网络错误处理
+				xhr.onerror = function () {
+					show_msg("网络错误，请检查网络连接");
+					fn(null);
+				}
+
+				// 发送GET请求
+				try {
+					xhr.open('GET', post_url + '?' + query_str, true);
+					xhr.timeout = 10000; // 10秒超时
+					xhr.send();
+				} catch (e) {
+					show_msg("请求发送失败");
+					fn(null);
+				}
+			}
+
+			window.LOGIN = {};
+			LOGIN.action_req_post = _action_req_post;
+		})();
+	</script>
+
+
+	<script type="text/javascript">
+		function GetRequest() {
+			var url = location.search;
+			var theRequest = new Object();
+			if (url.indexOf("?") != -1) {
+				var str = url.substr(1);
+				strs = str.split("&");
+				for (var i = 0; i < strs.length; i++) {
+					theRequest[strs[i].split("=")[0]] = unescape(strs[i].split("=")[1]);
+				}
+			}
+			return theRequest;
+		}
+
+		Request = GetRequest();
+
+		var data = {
+			title: "",
+			info: "欢迎登录"
+		};
+
+		var company = {
+			url: "http://www.natshell.com",
+			name: "商家",
+			title: "用户认证",
+		};
+		document.title = data.title;
+
+		var vm_body = {}
+		var purl = location.origin + "/test.html"
+		require(["mmRequest/mmRequest"], function () {
+
+			vm_body = avalon.define({
+				$id: "login_body",
+				com: company,
+			});
+
+			//获取标题等信息
+			LOGIN.action_req_post("/v1/get_portal_text", "", function (res) {
+				if (res) {
+					try {
+						res = JSON.parse(res)
+						document.title = res.body.login_title
+						vm_body.com.title = res.body.login_topic
+						vm_body.com.name = res.body.login_footer
+					} catch(e) {
+						console.log("解析门户文本失败");
+					}
+				}
+			});
+
+			var vm_form = avalon.define({
+				$id: "m_form",
+				username: "",
+				userpasswd: "",
+				loggingIn: false,
+				login: function (vm) {
+				//	console.log("0-loginIn:" + vm_form.loggingIn);
+					// 防止重复提交
+				//	if (this.loggingIn) {
+				//		return;
+				//	}
+
+					// 设置登录状态为正在进行中
+					this.loggingIn = true;
+
+					var url = location.search;
+				//	console.log("url:" + ocation.search);
+					if (url.indexOf("?") != -1) {
+						var str = url.substr(1);
+						str = str + "&username=" + document.getElementById("username").value +
+							"&userpasswd=" + vm_form.userpasswd
+
+						LOGIN.action_req_post("/v1/http_login", str, function (res) {
+							//console.log("1-loginIn:" + vm_form.loggingIn);
+							// 处理各种响应情况
+							if (res === null) {
+								show_msg("请求失败或超时");
+								vm_form.loggingIn = false;
+								return;
+							}
+
+							if (res === "") {
+								show_msg("服务器无响应");
+								vm_form.loggingIn = false;
+								return;
+							}
+
+							try {
+								res = JSON.parse(res);
+								code = res.error_code;
+
+								switch (code) {
+									case 0:
+										show_msg("认证成功");
+										location.href = location.origin + "/success.html?" + avalon.param(res.body);
+										break;
+									case -104:
+										show_msg("正在认证...");
+										break;
+									case -101:
+										show_msg("没有发现用户");
+										break;
+									case -102:
+										show_msg("用户已经成功登录");
+										break;
+									case -105:
+										show_msg("用户正在下线");
+										break;
+									case -108:
+										show_msg("RADIUS认证错误");
+										break;
+									case -116:
+										show_msg("未知的用户状态");
+										break;
+									case -103:
+										show_msg("认证超时");
+										break;
+									case -202:
+										show_msg("用户名或密码错误");
+										break;
+									case -112:
+										show_msg("用户名为空或错误");
+										break;
+									case -113:
+										show_msg("用户名或密码错误");
+										break;
+									default:
+										if (res.msg) {
+											show_msg(res.msg);
+										} else {
+											show_msg("系统错误，请联系管理员，错误码: " + code);
+										}
+								}
+							//	console.log("loginIn:" + vm_form.loggingIn);
+								// 重置登录状态（认证成功时不需要重置，因为页面会跳转）
+							//	if (code !== 0) {
+									vm_form.loggingIn = false;
+							//	}
+							} catch (e) {
+								show_msg("服务器响应格式错误");
+								vm_form.loggingIn = false;
+							}
+						});
+					} else {
+						show_msg("url格式错误");
+						this.loggingIn = false;
+					}
+				}
+			});
+
+			avalon.scan()
+		})
+	</script>
+</body>
+</html>

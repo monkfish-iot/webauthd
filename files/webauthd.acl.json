@@ -1,0 +1,20 @@
+{
+	"webauthd": {
+		"description": "WebAuthd session management (online user query / force disconnect)",
+		"read": {
+			"ubus": {
+				"webauthd.session": [
+					"list_users",
+					"drop_user"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"webauthd.session": [
+					"drop_user"
+				]
+			}
+		}
+	}
+}

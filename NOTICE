@@ -1,0 +1,33 @@
+webauthd
+Copyright (C) 2021-2026  MonkFish <5747844@qq.com>
+
+This product includes software developed by:
+
+  - Dave Gamble (cJSON, MIT License)
+    https://github.com/DaveGamble/cJSON
+  - Colin Plumb (MD5 message-digest algorithm, public domain, 1993)
+    (replaced by OpenSSL EVP MD5 in this distribution)
+
+This product bundles the following third-party assets:
+
+  - Bootstrap (MIT License) — Twitter, Inc.
+  - avalon.js (MIT License) — 司徒正美
+  - mmPromise.js / mmRequest.js (MIT License)
+  - dkjson (MIT License) — David Kolf
+
+This product links to the following libraries at build time:
+
+  - libnftnl      (GPL-2.0-or-later)   https://netfilter.org/
+  - libnftables   (GPL-2.0-or-later)
+  - libuci        (LGPL-2.1)
+  - libnl         (LGPL-2.1)
+  - libmnl        (LGPL-2.1)
+  - libevent2     (BSD-3-Clause)
+  - libuuid       (BSD-3-Clause)
+  - libcurl       (MIT-style curl License)
+  - libsodium     (ISC License)
+  - zlib          (zlib License)
+  - OpenSSL       (Apache-2.0, used for MD5)
+  - kmod-br-netfilter (GPL-2.0, kernel module, runtime dependency only)
+
+For the full text of the GNU General Public License v3, see the COPYING file.

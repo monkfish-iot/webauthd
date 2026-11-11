@@ -1,0 +1,222 @@
+#!/bin/sh /etc/rc.common
+
+START=97
+
+
+#sysctl -w net.bridge.bridge-nf-call-iptables=1
+
+start()  {
+    if [ ! -d "/var/log/nginx" ]; then
+        mkdir -p /var/log/nginx
+    fi
+    if [ ! -d "/var/lib/nginx" ]; then
+        mkdir -p /var/lib/nginx
+    fi  
+    if [ ! -d "/tmp/portal/https" ]; then
+        mkdir -p /tmp/portal/https                                                        
+    fi 
+
+    if [ ! -d "/tmp/nginx_cache" ]; then
+        mkdir -p /tmp/nginx_cache                                                        
+    fi 
+
+    config_load webauthd
+    config_get  enabled generic  enabled
+    config_get  layer generic  layer
+    # AP 硬件标记：/etc/bridge.mode 存在则强制二层桥接模式，忽略 UCI layer 配置
+    if [ -f /etc/bridge.mode ]; then
+        layer="2"
+    else
+        layer="${layer:-3}"
+    fi
+    config_get capture_dns   generic   capture_dns
+    config_get portal_type portal portal_type
+    config_get cache_enable portal cache_enable
+    config_get cache_valid_time portal cache_valid_time
+    config_get cache_max_size portal cache_max_size
+    config_get cache_inactive_time portal cache_inactive_time
+
+    # 注意：云端 Portal 地址、云端 RADIUS 参数不再由本脚本读写
+    # xfrpc_loader 的 UCI。运行态由 webauthd-control/v1 控制通道下发，
+    # webauthd 启动后从 /var/run/xfrpc_loader/webauthd-control.sock 拉取；
+    # 本脚本只生成 UCI 基线对应的本地/外部 Portal 配置。
+
+if [ "$portal_type" == "3" ] && [ "$cache_enable" == "1" ]; then
+    cache_max="${cache_max_size:-100m}"
+    cache_inactive="${cache_inactive_time:-60m}"
+    cache_valid="${cache_valid_time:-60m}"
+    
+    cat > /etc/nginx/conf.d/cache.conf <<EOF
+proxy_cache_path /tmp/nginx_cache levels=1:2 keys_zone=portal_cache:10m max_size=${cache_max} inactive=${cache_inactive} use_temp_path=off;
+EOF
+    killall  -9 nginx
+    nginx 
+else
+    if [ -f "/etc/nginx/conf.d/cache.conf" ]; then
+        rm -f /etc/nginx/conf.d/cache.conf
+        killall  -9 nginx
+        nginx 
+    fi
+fi
+sleep 30
+
+# 常规启动只管理 webauthd_filter / webauthd_nat。历史通用表可能属于
+# 其它组件，不能仅凭表名在启动路径中删除；旧版本迁移应由单独的、
+# 带版本与规则归属校验的升级脚本执行。
+
+if [ "$enabled" == "1" ]; then
+    if [ "$portal_type" == "1" ]; then
+        # local portal: nginx serves the static pages directly, API proxied to webauthd
+        cat > /etc/nginx/conf.d/portal.conf <<EOF
+server{
+    listen 20001;
+    server_name localhost;
+    root  /usr/local/webauthd/local_portal/html;
+    index login.html;
+
+    location /v1/get_portal_text {
+        proxy_pass http://127.0.0.1:20002/v1/get_portal_text;
+        proxy_redirect default;
+    }
+    location /v1/login {
+        proxy_pass http://127.0.0.1:20002/v1/http_login;
+        proxy_redirect default;
+    }
+}
+EOF
+    elif [ "$portal_type" == "3" ]; then
+        if [ -f "/etc/config/webauthd" ]; then
+            config_load webauthd
+            config_get proxy_pass portal proxy_pass
+            if [ -n "$proxy_pass" ]; then
+                cache_valid="${cache_valid_time:-60m}"
+                cache_max="${cache_max_size:-100m}"
+                cache_inactive="${cache_inactive_time:-60m}"
+                
+                if [ "$cache_enable" == "1" ]; then
+                    cat > /etc/nginx/conf.d/portal.conf <<EOF
+server{
+    listen 20001;
+    server_name localhost;
+    index login.html;
+
+    location / {
+        proxy_cache portal_cache;
+        proxy_cache_valid 200 302 ${cache_valid};
+        # 不得缓存 404：云端 200 带 no-store 不可缓存，缓存的 404 过期后无法被刷新替换，会形成死缓存
+        proxy_cache_key "\$scheme\$request_method\$host\$request_uri";
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        proxy_cache_lock on;
+        proxy_pass $proxy_pass;
+        proxy_redirect default;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Portal-Version 2;
+    }
+
+    location /v1/get_portal_text {
+        proxy_pass http://127.0.0.1:20002/v1/get_portal_text;
+        proxy_redirect default;
+        index  index.html index.htm;
+    }
+    location /v1/login {
+        proxy_pass http://127.0.0.1:20002/v1/http_login;
+        proxy_redirect default;
+    }
+}
+EOF
+                else
+                    cat > /etc/nginx/conf.d/portal.conf <<EOF
+server{
+    listen 20001;
+    server_name localhost;
+    index login.html;
+
+    location / {
+        proxy_pass $proxy_pass;
+        proxy_redirect default;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Portal-Version 2;
+    }
+
+    location /v1/get_portal_text {
+        proxy_pass http://127.0.0.1:20002/v1/get_portal_text;
+        proxy_redirect default;
+        index  index.html index.htm;
+    }
+    location /v1/login {
+        proxy_pass http://127.0.0.1:20002/v1/http_login;
+        proxy_redirect default;
+    }
+}
+EOF
+                fi
+            fi
+        fi
+    else
+        # external portal: 302 goes straight to portal_url, no 20001 listener
+        rm -f /etc/nginx/conf.d/portal.conf
+    fi
+    /usr/sbin/uhttpd  -h /usr/local/webauthd/https -r Redir -t 60 -T 30 -k 20 -A 1 -n 3 -N 100 -R   -C /etc/uhttpd.crt -K /etc/uhttpd.key -s 0.0.0.0:20443    
+    if [ "$layer" == "2" ]; then
+        sysctl -w net.bridge.bridge-nf-call-iptables=1
+        nft -f /etc/brdnft.conf
+        sysctl -w net.bridge.bridge-nf-call-iptables=1
+    else
+      nft -f /etc/rednft.conf
+    fi 
+    # DNS 劫持: 仅当 capture_dns=1 时, 把未认证客户端的 UDP/53 重定向到
+    # webauthd 内置 DNS(20053)。prerouting 链前面的 "ip saddr @authed return"
+    # 保证已认证客户端不受影响。规则在此处下发(而不是写死在 rednft/brdnft.conf),
+    # 因为 nft -f 每次都会 destroy 重建表, 不会重复累积。
+    if [ "$capture_dns" == "1" ]; then
+        nft add rule ip webauthd_nat prerouting udp dport 53 redirect to :20053
+        [ $? -ne 0 ] && logger -t webauthd "failed to add DNS capture nft rule"
+    fi
+    /sbin/webauthd
+    /sbin/helpme.sh  &
+    if [ -f "/etc/config/devagentd" ]; then
+            config_load devagentd                                
+            config_get  inst_enable devagentd  inst_enable
+            config_get server_name   devagentd   server_name
+            if [ "$inst_enable" == "1" ]; then
+                nft add element ip webauthd_filter white_list {$server_name}
+                
+            fi
+
+    fi
+else
+    nft -f /etc/defnft.conf 
+
+fi
+
+nginx -s reload 2>/dev/null || nginx
+}
+
+stop() {
+
+
+kill  -HUP  `ps -wwww |grep webauthd |grep -v grep | grep sbin |awk '{print $1}'`
+kill  -HUP `ps -www |grep uhttp | grep -v grep | grep 0.0.0.0:20443 | awk '{print($1)}'`
+
+killall  -9 helpme.sh
+killall  -9 nginx
+ ##nft -f /etc/defnft.conf 
+
+
+}
+
+
+
+
+
+reload_service() {
+ 
+stop
+
+start
+}
